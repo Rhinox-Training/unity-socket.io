@@ -12,3 +12,7 @@
 *.pidb
 *.booproj
 *.meta
+
+.idea/
+.vscode/
+.vs/

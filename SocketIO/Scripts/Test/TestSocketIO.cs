@@ -34,17 +34,21 @@ public class TestSocketIO : MonoBehaviour
 {
 	private SocketIOComponent socket;
 
-	public void Start() 
+	public IEnumerator Start() 
 	{
+		yield return new WaitForSeconds(0.5f);
+		Debug.Log("start");
 		GameObject go = GameObject.Find("SocketIO");
 		socket = go.GetComponent<SocketIOComponent>();
 
 		socket.On("open", TestOpen);
-		socket.On("boop", TestBoop);
-		socket.On("error", TestError);
+		//socket.On("boop", TestBoop);
+		//socket.On("error", TestError);
 		socket.On("close", TestClose);
-		
-		StartCoroutine("BeepBoop");
+
+		socket.On("join", TestJoin);
+
+		//StartCoroutine("BeepBoop");
 	}
 
 	private IEnumerator BeepBoop()
@@ -97,5 +101,10 @@ public class TestSocketIO : MonoBehaviour
 	public void TestClose(SocketIOEvent e)
 	{	
 		Debug.Log("[SocketIO] Close received: " + e.name + " " + e.data);
+	}
+
+	public void TestJoin(SocketIOEvent e)
+	{
+		Debug.Log("[SocketIO] Join received: " + e.name + " " + e.data);
 	}
 }

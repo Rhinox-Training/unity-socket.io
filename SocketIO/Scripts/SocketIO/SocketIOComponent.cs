@@ -42,10 +42,10 @@ namespace SocketIO
 	{
 		#region Public Properties
 
-		public string url = "ws://127.0.0.1:4567/socket.io/?EIO=3&transport=websocket";
-		public bool autoConnect = false;
+		public string url = "ws://127.0.0.1:4567/socket.io/?EIO=4&transport=websocket";
+		public bool autoConnect = true;
 		public int reconnectDelay = 5;
-		public float ackExpirationTime = 30f;
+		public float ackExpirationTime = 1800f;
 		public float pingInterval = 25f;
 		public float pingTimeout = 60f;
 
@@ -89,7 +89,7 @@ namespace SocketIO
 
 		#region Unity interface
 
-		public void Awake()
+		public virtual void Awake()
 		{
 			encoder = new Encoder();
 			decoder = new Decoder();
@@ -119,12 +119,12 @@ namespace SocketIO
 			#endif
 		}
 
-		public void Start()
+		public virtual void Start()
 		{
 			if (autoConnect) { Connect(); }
 		}
 
-		public void Update()
+		public virtual void Update()
 		{
 			lock(eventQueueLock){ 
 				while(eventQueue.Count > 0){
@@ -137,10 +137,10 @@ namespace SocketIO
 					InvokeAck(ackQueue.Dequeue());
 				}
 			}
-
-			if(wsConnected != ws.IsConnected){
-				wsConnected = ws.IsConnected;
-				if(wsConnected){
+			
+			if(wsConnected != ws.IsAlive){ // was .IsConnected
+				wsConnected = ws.IsAlive; // was .IsConnected
+				if (wsConnected){
 					EmitEvent("connect");
 				} else {
 					EmitEvent("disconnect");
@@ -167,10 +167,6 @@ namespace SocketIO
 		#endregion
 
 		#region Public Interface
-
-        public void SetHeader(string header, string value) {
-            ws.SetHeader(header, value);
-        }
 		
 		public void Connect()
 		{
@@ -231,11 +227,6 @@ namespace SocketIO
 			ackList.Add(new Ack(packetId, action));
 		}
 
-		public void Emit(string ev, string str)
-		{
-			EmitMessage(-1, string.Format("[\"{0}\",\"{1}\"]", ev, str));
-		}
-
 		public void Emit(string ev, JSONObject data)
 		{
 			EmitMessage(-1, string.Format("[\"{0}\",{1}]", ev, data));
@@ -255,7 +246,7 @@ namespace SocketIO
 		{
 			WebSocket webSocket = (WebSocket)obj;
 			while(connected){
-				if(webSocket.IsConnected){
+				if(webSocket.IsAlive){ // was .IsAlive
 					Thread.Sleep(reconnectDelay);
 				} else {
 					webSocket.Connect();
@@ -284,7 +275,7 @@ namespace SocketIO
 					EmitPacket(new Packet(EnginePacketType.PING));
 					pingStart = DateTime.Now;
 					
-					while(webSocket.IsConnected && thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMilis)){
+					while(webSocket.IsAlive && thPinging && (DateTime.Now.Subtract(pingStart).TotalSeconds < timeoutMilis)){ // was .IsAlive
 						Thread.Sleep(200);
 					}
 					
@@ -386,9 +377,9 @@ namespace SocketIO
 			}
 		}
 
-		private void OnError(object sender, ErrorEventArgs e)
+		protected virtual void OnError(object sender, ErrorEventArgs e)
 		{
-			EmitEvent(new SocketIOEvent("error", JSONObject.CreateStringObject(e.Message)));
+			EmitEvent("error");
 		}
 
 		private void OnClose(object sender, CloseEventArgs e)
