@@ -88,7 +88,6 @@ namespace WebSocketSharp
     private Queue<MessageEventArgs> _messageEventQueue;
     private uint                    _nonceCount;
     private string                  _origin;
-    private NameValueCollection     _customHeaders;
     private bool                    _preAuth;
     private string                  _protocol;
     private string []               _protocols;
@@ -934,12 +933,6 @@ namespace WebSocketSharp
       if (authRes != null)
         headers ["Authorization"] = authRes.ToString ();
 
-            // add custom headers
-            if (_customHeaders != null) {
-                headers.Add(_customHeaders);
-            }
-        
-      
       if (_cookies.Count > 0)
         req.SetCookies (_cookies);
 
@@ -1774,17 +1767,6 @@ namespace WebSocketSharp
       var send = _readyState == WebSocketState.Open && !code.IsReserved ();
       closeAsync (new PayloadData (data), send, send);
     }
-
-        /// <summary>
-        /// Sets header value
-        /// </summary>
-        public void SetHeader(string header, string value) {
-            if (_customHeaders == null) {
-                _customHeaders = new NameValueCollection();
-            }
-
-            _customHeaders[header] = value;
-        }
 
     /// <summary>
     /// Establishes a WebSocket connection.
