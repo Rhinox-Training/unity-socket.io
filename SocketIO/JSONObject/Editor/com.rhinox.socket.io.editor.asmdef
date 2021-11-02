@@ -1,5 +1,8 @@
 ﻿{
 	"name": "com.rhinox.socket.io.editor",
+    "references": [
+        "com.rhinox.socket.io"
+	],
     "includePlatforms": [
         "Editor"
     ],
