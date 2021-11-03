@@ -4,7 +4,7 @@
  *
  * The MIT License
  *
- * Copyright (c) 2012-2014 sta.blockhead
+ * Copyright (c) 2012-2019 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,41 +27,42 @@
 #endregion
 
 using System;
-using System.Text;
 
 namespace WebSocketSharp
 {
   /// <summary>
-  /// Contains the event data associated with a <see cref="WebSocket.OnClose"/> event.
+  /// Represents the event data for the <see cref="WebSocket.OnClose"/> event.
   /// </summary>
   /// <remarks>
-  /// A <see cref="WebSocket.OnClose"/> event occurs when the WebSocket connection has been closed.
-  /// If you would like to get the reason for the close, you should access the <see cref="Code"/> or
-  /// <see cref="Reason"/> property.
+  ///   <para>
+  ///   That event occurs when the WebSocket connection has been closed.
+  ///   </para>
+  ///   <para>
+  ///   If you would like to get the reason for the connection close, you should
+  ///   access the <see cref="Code"/> or <see cref="Reason"/> property.
+  ///   </para>
   /// </remarks>
   public class CloseEventArgs : EventArgs
   {
     #region Private Fields
 
-    private bool   _clean;
-    private ushort _code;
-    private string _reason;
+    private bool        _clean;
+    private PayloadData _payloadData;
 
     #endregion
 
     #region Internal Constructors
 
-    internal CloseEventArgs (PayloadData payload)
+    internal CloseEventArgs (PayloadData payloadData, bool clean)
     {
-      var data = payload.ApplicationData;
-      var len = data.Length;
-      _code = len > 1
-              ? data.SubArray (0, 2).ToUInt16 (ByteOrder.Big)
-              : (ushort) CloseStatusCode.NoStatusCode;
+      _payloadData = payloadData;
+      _clean = clean;
+    }
 
-      _reason = len > 2
-                ? Encoding.UTF8.GetString (data.SubArray (2, len - 2))
-                : String.Empty;
+    internal CloseEventArgs (ushort code, string reason, bool clean)
+    {
+      _payloadData = new PayloadData (code, reason);
+      _clean = clean;
     }
 
     #endregion
@@ -69,42 +70,41 @@ namespace WebSocketSharp
     #region Public Properties
 
     /// <summary>
-    /// Gets the status code for the close.
+    /// Gets the status code for the connection close.
     /// </summary>
     /// <value>
-    /// A <see cref="ushort"/> that represents the status code for the close if any.
+    /// A <see cref="ushort"/> that represents the status code for
+    /// the connection close if present.
     /// </value>
     public ushort Code {
       get {
-        return _code;
+        return _payloadData.Code;
       }
     }
 
     /// <summary>
-    /// Gets the reason for the close.
+    /// Gets the reason for the connection close.
     /// </summary>
     /// <value>
-    /// A <see cref="string"/> that represents the reason for the close if any.
+    /// A <see cref="string"/> that represents the reason for
+    /// the connection close if present.
     /// </value>
     public string Reason {
       get {
-        return _reason;
+        return _payloadData.Reason;
       }
     }
 
     /// <summary>
-    /// Gets a value indicating whether the WebSocket connection has been closed cleanly.
+    /// Gets a value indicating whether the connection has been closed cleanly.
     /// </summary>
     /// <value>
-    /// <c>true</c> if the WebSocket connection has been closed cleanly; otherwise, <c>false</c>.
+    /// <c>true</c> if the connection has been closed cleanly; otherwise,
+    /// <c>false</c>.
     /// </value>
     public bool WasClean {
       get {
         return _clean;
-      }
-
-      internal set {
-        _clean = value;
       }
     }
 
