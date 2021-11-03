@@ -1,0 +1,15 @@
+{
+    "name": "com.rhinox.socket.io",
+    "references": [
+        "GUID:715d552d468493c45adc37329bd9bd9e"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,14 @@
+{
+  "name": "com.rhinox.socket.io",
+  "displayName": "Socket.IO (Rhinox Module)",
+  "version": "0.0.2",
+  "unity": "2019.3",
+  "description": "SocketIO implementation for Unity.",
+  "keywords": [
+    "csharp"
+  ],
+  "category": "CSharp",
+  "dependencies": {
+  },
+  "type": "library"
+}
