@@ -2,13 +2,13 @@
 /*
  * HttpListenerContext.cs
  *
- * This code is derived from System.Net.HttpListenerContext.cs of Mono
+ * This code is derived from HttpListenerContext.cs (System.Net) of Mono
  * (http://www.mono-project.com).
  *
  * The MIT License
  *
  * Copyright (c) 2005 Novell, Inc. (http://www.novell.com)
- * Copyright (c) 2012-2014 sta.blockhead
+ * Copyright (c) 2012-2020 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,33 +39,30 @@
 
 using System;
 using System.Security.Principal;
+using System.Text;
 using WebSocketSharp.Net.WebSockets;
 
 namespace WebSocketSharp.Net
 {
   /// <summary>
-  /// Provides a set of methods and properties used to access the HTTP request and response
-  /// information used by the <see cref="HttpListener"/>.
+  /// Provides the access to the HTTP request and response objects used by
+  /// the <see cref="HttpListener"/> class.
   /// </summary>
   /// <remarks>
-  /// The HttpListenerContext class cannot be inherited.
+  /// This class cannot be inherited.
   /// </remarks>
   public sealed class HttpListenerContext
   {
     #region Private Fields
 
-    private HttpConnection       _connection;
-    private string               _error;
-    private int                  _errorStatus;
-    private HttpListenerRequest  _request;
-    private HttpListenerResponse _response;
-    private IPrincipal           _user;
-
-    #endregion
-
-    #region Internal Fields
-
-    internal HttpListener Listener;
+    private HttpConnection               _connection;
+    private string                       _errorMessage;
+    private int                          _errorStatusCode;
+    private HttpListener                 _listener;
+    private HttpListenerRequest          _request;
+    private HttpListenerResponse         _response;
+    private IPrincipal                   _user;
+    private HttpListenerWebSocketContext _websocketContext;
 
     #endregion
 
@@ -74,7 +71,8 @@ namespace WebSocketSharp.Net
     internal HttpListenerContext (HttpConnection connection)
     {
       _connection = connection;
-      _errorStatus = 400;
+
+      _errorStatusCode = 400;
       _request = new HttpListenerRequest (this);
       _response = new HttpListenerResponse (this);
     }
@@ -91,27 +89,37 @@ namespace WebSocketSharp.Net
 
     internal string ErrorMessage {
       get {
-        return _error;
+        return _errorMessage;
       }
 
       set {
-        _error = value;
+        _errorMessage = value;
       }
     }
 
-    internal int ErrorStatus {
+    internal int ErrorStatusCode {
       get {
-        return _errorStatus;
+        return _errorStatusCode;
       }
 
       set {
-        _errorStatus = value;
+        _errorStatusCode = value;
       }
     }
 
-    internal bool HasError {
+    internal bool HasErrorMessage {
       get {
-        return _error != null;
+        return _errorMessage != null;
+      }
+    }
+
+    internal HttpListener Listener {
+      get {
+        return _listener;
+      }
+
+      set {
+        _listener = value;
       }
     }
 
@@ -120,10 +128,10 @@ namespace WebSocketSharp.Net
     #region Public Properties
 
     /// <summary>
-    /// Gets the HTTP request information from a client.
+    /// Gets the HTTP request object that represents a client request.
     /// </summary>
     /// <value>
-    /// A <see cref="HttpListenerRequest"/> that represents the HTTP request.
+    /// A <see cref="HttpListenerRequest"/> that represents the client request.
     /// </value>
     public HttpListenerRequest Request {
       get {
@@ -132,10 +140,11 @@ namespace WebSocketSharp.Net
     }
 
     /// <summary>
-    /// Gets the HTTP response information used to send to the client.
+    /// Gets the HTTP response object used to send a response to the client.
     /// </summary>
     /// <value>
-    /// A <see cref="HttpListenerResponse"/> that represents the HTTP response to send.
+    /// A <see cref="HttpListenerResponse"/> that represents a response to
+    /// the client request.
     /// </value>
     public HttpListenerResponse Response {
       get {
@@ -144,53 +153,103 @@ namespace WebSocketSharp.Net
     }
 
     /// <summary>
-    /// Gets the client information (identity, authentication, and security roles).
+    /// Gets the client information (identity, authentication, and security
+    /// roles).
     /// </summary>
     /// <value>
-    /// A <see cref="IPrincipal"/> that represents the client information.
+    ///   <para>
+    ///   A <see cref="IPrincipal"/> instance or <see langword="null"/>
+    ///   if not authenticated.
+    ///   </para>
+    ///   <para>
+    ///   The instance describes the client.
+    ///   </para>
     /// </value>
     public IPrincipal User {
       get {
         return _user;
       }
+
+      internal set {
+        _user = value;
+      }
+    }
+
+    #endregion
+
+    #region Private Methods
+
+    private static string createErrorContent (
+      int statusCode, string statusDescription, string message
+    )
+    {
+      return message != null && message.Length > 0
+             ? String.Format (
+                 "<html><body><h1>{0} {1} ({2})</h1></body></html>",
+                 statusCode,
+                 statusDescription,
+                 message
+               )
+             : String.Format (
+                 "<html><body><h1>{0} {1}</h1></body></html>",
+                 statusCode,
+                 statusDescription
+               );
     }
 
     #endregion
 
     #region Internal Methods
 
-    internal void SetUser (
-      AuthenticationSchemes scheme,
-      string realm,
-      Func<IIdentity, NetworkCredential> credentialsFinder)
+    internal HttpListenerWebSocketContext GetWebSocketContext (string protocol)
     {
-      var authRes = AuthenticationResponse.Parse (_request.Headers ["Authorization"]);
-      if (authRes == null)
-        return;
+      _websocketContext = new HttpListenerWebSocketContext (this, protocol);
 
-      var id = authRes.ToIdentity ();
-      if (id == null)
-        return;
+      return _websocketContext;
+    }
 
-      NetworkCredential cred = null;
+    internal void SendAuthenticationChallenge (
+      AuthenticationSchemes scheme, string realm
+    )
+    {
+      var chal = new AuthenticationChallenge (scheme, realm).ToString ();
+
+      _response.StatusCode = 401;
+      _response.Headers.InternalSet ("WWW-Authenticate", chal, true);
+
+      _response.Close ();
+    }
+
+    internal void SendError ()
+    {
       try {
-        cred = credentialsFinder (id);
+        _response.StatusCode = _errorStatusCode;
+        _response.ContentType = "text/html";
+
+        var content = createErrorContent (
+                        _errorStatusCode,
+                        _response.StatusDescription,
+                        _errorMessage
+                      );
+
+        var enc = Encoding.UTF8;
+        var entity = enc.GetBytes (content);
+        _response.ContentEncoding = enc;
+        _response.ContentLength64 = entity.LongLength;
+
+        _response.Close (entity, true);
       }
       catch {
+        _connection.Close (true);
       }
+    }
 
-      if (cred == null)
+    internal void Unregister ()
+    {
+      if (_listener == null)
         return;
 
-      var valid = scheme == AuthenticationSchemes.Basic
-                  ? ((HttpBasicIdentity) id).Password == cred.Password
-                  : scheme == AuthenticationSchemes.Digest
-                    ? ((HttpDigestIdentity) id).IsValid (
-                        cred.Password, realm, _request.HttpMethod, null)
-                    : false;
-
-      if (valid)
-        _user = new GenericPrincipal (id, cred.Roles);
+      _listener.UnregisterContext (this);
     }
 
     #endregion
@@ -198,17 +257,15 @@ namespace WebSocketSharp.Net
     #region Public Methods
 
     /// <summary>
-    /// Accepts a WebSocket connection request.
+    /// Accepts a WebSocket handshake request.
     /// </summary>
     /// <returns>
-    /// A <see cref="HttpListenerWebSocketContext"/> that represents the WebSocket connection
-    /// request.
+    /// A <see cref="HttpListenerWebSocketContext"/> that represents
+    /// the WebSocket handshake request.
     /// </returns>
     /// <param name="protocol">
-    /// A <see cref="string"/> that represents the subprotocol used in the WebSocket connection.
-    /// </param>
-    /// <param name="logger">
-    /// A <see cref="Logger"/> that provides the logging functions used in the WebSocket attempts.
+    /// A <see cref="string"/> that specifies the subprotocol supported on
+    /// the WebSocket connection.
     /// </param>
     /// <exception cref="ArgumentException">
     ///   <para>
@@ -221,17 +278,32 @@ namespace WebSocketSharp.Net
     ///   <paramref name="protocol"/> contains an invalid character.
     ///   </para>
     /// </exception>
-    public HttpListenerWebSocketContext AcceptWebSocket (string protocol, Logger logger)
+    /// <exception cref="InvalidOperationException">
+    /// This method has already been called.
+    /// </exception>
+    public HttpListenerWebSocketContext AcceptWebSocket (string protocol)
     {
-      if (protocol != null) {
-        if (protocol.Length == 0)
-          throw new ArgumentException ("An empty string.", "protocol");
+      if (_websocketContext != null) {
+        var msg = "The accepting is already in progress.";
 
-        if (!protocol.IsToken ())
-          throw new ArgumentException ("Contains an invalid character.", "protocol");
+        throw new InvalidOperationException (msg);
       }
 
-      return new HttpListenerWebSocketContext (this, protocol, logger ?? new Logger ());
+      if (protocol != null) {
+        if (protocol.Length == 0) {
+          var msg = "An empty string.";
+
+          throw new ArgumentException (msg, "protocol");
+        }
+
+        if (!protocol.IsToken ()) {
+          var msg = "It contains an invalid character.";
+
+          throw new ArgumentException (msg, "protocol");
+        }
+      }
+
+      return GetWebSocketContext (protocol);
     }
 
     #endregion

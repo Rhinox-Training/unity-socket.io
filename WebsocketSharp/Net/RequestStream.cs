@@ -2,13 +2,13 @@
 /*
  * RequestStream.cs
  *
- * This code is derived from System.Net.RequestStream.cs of Mono
+ * This code is derived from RequestStream.cs (System.Net) of Mono
  * (http://www.mono-project.com).
  *
  * The MIT License
  *
  * Copyright (c) 2005 Novell, Inc. (http://www.novell.com)
- * Copyright (c) 2012-2014 sta.blockhead
+ * Copyright (c) 2012-2021 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,30 +46,26 @@ namespace WebSocketSharp.Net
   {
     #region Private Fields
 
-    private byte [] _buffer;
-    private bool    _disposed;
-    private int     _length;
-    private int     _offset;
-    private long    _remainingBody;
-    private Stream  _stream;
+    private long   _bodyLeft;
+    private byte[] _buffer;
+    private int    _count;
+    private bool   _disposed;
+    private int    _offset;
+    private Stream _stream;
 
     #endregion
 
     #region Internal Constructors
 
-    internal RequestStream (Stream stream, byte [] buffer, int offset, int length)
-      : this (stream, buffer, offset, length, -1)
-    {
-    }
-
     internal RequestStream (
-      Stream stream, byte [] buffer, int offset, int length, long contentlength)
+      Stream stream, byte[] buffer, int offset, int count, long contentLength
+    )
     {
       _stream = stream;
       _buffer = buffer;
       _offset = offset;
-      _length = length;
-      _remainingBody = contentlength;
+      _count = count;
+      _bodyLeft = contentLength;
     }
 
     #endregion
@@ -114,51 +110,34 @@ namespace WebSocketSharp.Net
 
     #region Private Methods
 
-    // Returns 0 if we can keep reading from the base stream,
-    // > 0 if we read something from the buffer.
-    // -1 if we had a content length set and we finished reading that many bytes.
-    private int fillFromBuffer (byte [] buffer, int offset, int count)
+    private int fillFromBuffer (byte[] buffer, int offset, int count)
     {
-      if (buffer == null)
-        throw new ArgumentNullException ("buffer");
+      // This method returns a int:
+      // - > 0 The number of bytes read from the internal buffer
+      // - 0   No more bytes read from the internal buffer
+      // - -1  No more content data
 
-      if (offset < 0)
-        throw new ArgumentOutOfRangeException ("offset", "Less than zero.");
-
-      if (count < 0)
-        throw new ArgumentOutOfRangeException ("count", "Less than zero.");
-
-      var len = buffer.Length;
-      if (offset > len)
-        throw new ArgumentException ("'offset' is greater than 'buffer' size.");
-
-      if (offset > len - count)
-        throw new ArgumentException ("Reading would overrun 'buffer'.");
-
-      if (_remainingBody == 0)
+      if (_bodyLeft == 0)
         return -1;
 
-      if (_length == 0)
+      if (_count == 0)
         return 0;
 
-      var size = _length < count ? _length : count;
-      if (_remainingBody > 0 && _remainingBody < size)
-        size = (int) _remainingBody;
+      if (count > _count)
+        count = _count;
 
-      var remainingBuffer = _buffer.Length - _offset;
-      if (remainingBuffer < size)
-        size = remainingBuffer;
+      if (_bodyLeft > 0 && _bodyLeft < count)
+        count = (int) _bodyLeft;
 
-      if (size == 0)
-        return 0;
+      Buffer.BlockCopy (_buffer, _offset, buffer, offset, count);
 
-      Buffer.BlockCopy (_buffer, _offset, buffer, offset, size);
-      _offset += size;
-      _length -= size;
-      if (_remainingBody > 0)
-        _remainingBody -= size;
+      _offset += count;
+      _count -= count;
 
-      return size;
+      if (_bodyLeft > 0)
+        _bodyLeft -= count;
+
+      return count;
     }
 
     #endregion
@@ -166,32 +145,63 @@ namespace WebSocketSharp.Net
     #region Public Methods
 
     public override IAsyncResult BeginRead (
-      byte [] buffer, int offset, int count, AsyncCallback callback, object state)
+      byte[] buffer, int offset, int count, AsyncCallback callback, object state
+    )
     {
-      if (_disposed)
-        throw new ObjectDisposedException (GetType ().ToString ());
+      if (_disposed) {
+        var name = GetType ().ToString ();
+
+        throw new ObjectDisposedException (name);
+      }
+
+      if (buffer == null)
+        throw new ArgumentNullException ("buffer");
+
+      if (offset < 0) {
+        var msg = "A negative value.";
+
+        throw new ArgumentOutOfRangeException ("offset", msg);
+      }
+
+      if (count < 0) {
+        var msg = "A negative value.";
+
+        throw new ArgumentOutOfRangeException ("count", msg);
+      }
+
+      var len = buffer.Length;
+
+      if (offset + count > len) {
+        var msg = "The sum of 'offset' and 'count' is greater than the length of 'buffer'.";
+
+        throw new ArgumentException (msg);
+      }
+
+      if (count == 0)
+        return _stream.BeginRead (buffer, offset, 0, callback, state);
 
       var nread = fillFromBuffer (buffer, offset, count);
-      if (nread > 0 || nread == -1) {
+
+      if (nread != 0) {
         var ares = new HttpStreamAsyncResult (callback, state);
         ares.Buffer = buffer;
         ares.Offset = offset;
         ares.Count = count;
-        ares.SyncRead = nread;
+        ares.SyncRead = nread > 0 ? nread : 0;
         ares.Complete ();
 
         return ares;
       }
 
-      // Avoid reading past the end of the request to allow for HTTP pipelining.
-      if (_remainingBody >= 0 && _remainingBody < count)
-        count = (int) _remainingBody;
+      if (_bodyLeft >= 0 && _bodyLeft < count)
+        count = (int) _bodyLeft;
 
       return _stream.BeginRead (buffer, offset, count, callback, state);
     }
 
     public override IAsyncResult BeginWrite (
-      byte [] buffer, int offset, int count, AsyncCallback callback, object state)
+      byte[] buffer, int offset, int count, AsyncCallback callback, object state
+    )
     {
       throw new NotSupportedException ();
     }
@@ -203,24 +213,28 @@ namespace WebSocketSharp.Net
 
     public override int EndRead (IAsyncResult asyncResult)
     {
-      if (_disposed)
-        throw new ObjectDisposedException (GetType ().ToString ());
+      if (_disposed) {
+        var name = GetType ().ToString ();
+
+        throw new ObjectDisposedException (name);
+      }
 
       if (asyncResult == null)
         throw new ArgumentNullException ("asyncResult");
 
       if (asyncResult is HttpStreamAsyncResult) {
         var ares = (HttpStreamAsyncResult) asyncResult;
+
         if (!ares.IsCompleted)
           ares.AsyncWaitHandle.WaitOne ();
 
         return ares.SyncRead;
       }
 
-      // Close on exception?
       var nread = _stream.EndRead (asyncResult);
-      if (nread > 0 && _remainingBody > 0)
-        _remainingBody -= nread;
+
+      if (nread > 0 && _bodyLeft > 0)
+        _bodyLeft -= nread;
 
       return nread;
     }
@@ -234,23 +248,52 @@ namespace WebSocketSharp.Net
     {
     }
 
-    public override int Read (byte [] buffer, int offset, int count)
+    public override int Read (byte[] buffer, int offset, int count)
     {
-      if (_disposed)
-        throw new ObjectDisposedException (GetType ().ToString ());
+      if (_disposed) {
+        var name = GetType ().ToString ();
 
-      // Call fillFromBuffer to check for buffer boundaries even when
-      // _remainingBody is 0.
+        throw new ObjectDisposedException (name);
+      }
+
+      if (buffer == null)
+        throw new ArgumentNullException ("buffer");
+
+      if (offset < 0) {
+        var msg = "A negative value.";
+
+        throw new ArgumentOutOfRangeException ("offset", msg);
+      }
+
+      if (count < 0) {
+        var msg = "A negative value.";
+
+        throw new ArgumentOutOfRangeException ("count", msg);
+      }
+
+      var len = buffer.Length;
+
+      if (offset + count > len) {
+        var msg = "The sum of 'offset' and 'count' is greater than the length of 'buffer'.";
+
+        throw new ArgumentException (msg);
+      }
+
+      if (count == 0)
+        return 0;
+
       var nread = fillFromBuffer (buffer, offset, count);
-      if (nread == -1) // No more bytes available (Content-Length).
+
+      if (nread == -1)
         return 0;
 
       if (nread > 0)
         return nread;
 
       nread = _stream.Read (buffer, offset, count);
-      if (nread > 0 && _remainingBody > 0)
-        _remainingBody -= nread;
+
+      if (nread > 0 && _bodyLeft > 0)
+        _bodyLeft -= nread;
 
       return nread;
     }
@@ -265,7 +308,7 @@ namespace WebSocketSharp.Net
       throw new NotSupportedException ();
     }
 
-    public override void Write (byte [] buffer, int offset, int count)
+    public override void Write (byte[] buffer, int offset, int count)
     {
       throw new NotSupportedException ();
     }

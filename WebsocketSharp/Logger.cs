@@ -4,7 +4,7 @@
  *
  * The MIT License
  *
- * Copyright (c) 2013-2014 sta.blockhead
+ * Copyright (c) 2013-2015 sta.blockhead
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,16 +37,17 @@ namespace WebSocketSharp
   /// </summary>
   /// <remarks>
   ///   <para>
-  ///   If you output a log with lower than the <see cref="Logger.Level"/>,
+  ///   If you output a log with lower than the value of the <see cref="Logger.Level"/> property,
   ///   it cannot be outputted.
   ///   </para>
   ///   <para>
-  ///   The default output action writes a log to the standard output stream and
-  ///   the <see cref="Logger.File"/> if it has a valid path.
+  ///   The default output action writes a log to the standard output stream and the log file
+  ///   if the <see cref="Logger.File"/> property has a valid path to it.
   ///   </para>
   ///   <para>
-  ///   If you would like to use the custom output action, you should set the
-  ///   <see cref="Logger.Output"/> to any <c>Action&lt;LogData, string&gt;</c>.
+  ///   If you would like to use the custom output action, you should set
+  ///   the <see cref="Logger.Output"/> property to any <c>Action&lt;LogData, string&gt;</c>
+  ///   delegate.
   ///   </para>
   /// </remarks>
   public class Logger
@@ -74,8 +75,8 @@ namespace WebSocketSharp
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Logger"/> class with the specified
-    /// logging <paramref name="level"/>.
+    /// Initializes a new instance of the <see cref="Logger"/> class with
+    /// the specified logging <paramref name="level"/>.
     /// </summary>
     /// <param name="level">
     /// One of the <see cref="LogLevel"/> enum values.
@@ -86,9 +87,9 @@ namespace WebSocketSharp
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Logger"/> class with the specified
-    /// logging <paramref name="level"/>, path to the log <paramref name="file"/>, and
-    /// <paramref name="output"/> action.
+    /// Initializes a new instance of the <see cref="Logger"/> class with
+    /// the specified logging <paramref name="level"/>, path to the log <paramref name="file"/>,
+    /// and <paramref name="output"/> action.
     /// </summary>
     /// <param name="level">
     /// One of the <see cref="LogLevel"/> enum values.
@@ -97,9 +98,9 @@ namespace WebSocketSharp
     /// A <see cref="string"/> that represents the path to the log file.
     /// </param>
     /// <param name="output">
-    /// An <c>Action&lt;LogData, string&gt;</c> delegate that references the method(s)
-    /// used to output a log. A <see cref="string"/> parameter passed to this delegate
-    /// is <paramref name="file"/>.
+    /// An <c>Action&lt;LogData, string&gt;</c> delegate that references the method(s) used to
+    /// output a log. A <see cref="string"/> parameter passed to this delegate is
+    /// <paramref name="file"/>.
     /// </param>
     public Logger (LogLevel level, string file, Action<LogData, string> output)
     {
@@ -114,10 +115,10 @@ namespace WebSocketSharp
     #region Public Properties
 
     /// <summary>
-    /// Gets or sets the path to the log file.
+    /// Gets or sets the current path to the log file.
     /// </summary>
     /// <value>
-    /// A <see cref="string"/> that represents the path to the log file if any.
+    /// A <see cref="string"/> that represents the current path to the log file if any.
     /// </value>
     public string File {
       get {
@@ -140,7 +141,7 @@ namespace WebSocketSharp
     /// A log with lower than the value of this property cannot be outputted.
     /// </remarks>
     /// <value>
-    /// One of the <see cref="LogLevel"/> enum values, indicates the current logging level.
+    /// One of the <see cref="LogLevel"/> enum values, specifies the current logging level.
     /// </value>
     public LogLevel Level {
       get {
@@ -162,7 +163,7 @@ namespace WebSocketSharp
     ///   <para>
     ///   An <c>Action&lt;LogData, string&gt;</c> delegate that references the method(s) used to
     ///   output a log. A <see cref="string"/> parameter passed to this delegate is the value of
-    ///   the <see cref="Logger.File"/>.
+    ///   the <see cref="Logger.File"/> property.
     ///   </para>
     ///   <para>
     ///   If the value to set is <see langword="null"/>, the current output action is changed to
@@ -191,7 +192,7 @@ namespace WebSocketSharp
       var log = data.ToString ();
       Console.WriteLine (log);
       if (path != null && path.Length > 0)
-        writeToFile (path, log);
+        writeToFile (log, path);
     }
 
     private void output (string message, LogLevel level)
@@ -212,12 +213,11 @@ namespace WebSocketSharp
       }
     }
 
-    private static void writeToFile (string path, string value)
+    private static void writeToFile (string value, string path)
     {
       using (var writer = new StreamWriter (path, true))
-      using (var syncWriter = TextWriter.Synchronized (writer)) {
+      using (var syncWriter = TextWriter.Synchronized (writer))
         syncWriter.WriteLine (value);
-      }
     }
 
     #endregion
@@ -228,8 +228,8 @@ namespace WebSocketSharp
     /// Outputs <paramref name="message"/> as a log with <see cref="LogLevel.Debug"/>.
     /// </summary>
     /// <remarks>
-    /// If the current logging level is higher than <see cref="LogLevel.Debug"/>, this method
-    /// doesn't output <paramref name="message"/> as a log.
+    /// If the current logging level is higher than <see cref="LogLevel.Debug"/>,
+    /// this method doesn't output <paramref name="message"/> as a log.
     /// </remarks>
     /// <param name="message">
     /// A <see cref="string"/> that represents the message to output as a log.
@@ -246,8 +246,8 @@ namespace WebSocketSharp
     /// Outputs <paramref name="message"/> as a log with <see cref="LogLevel.Error"/>.
     /// </summary>
     /// <remarks>
-    /// If the current logging level is higher than <see cref="LogLevel.Error"/>, this method
-    /// doesn't output <paramref name="message"/> as a log.
+    /// If the current logging level is higher than <see cref="LogLevel.Error"/>,
+    /// this method doesn't output <paramref name="message"/> as a log.
     /// </remarks>
     /// <param name="message">
     /// A <see cref="string"/> that represents the message to output as a log.
@@ -275,8 +275,8 @@ namespace WebSocketSharp
     /// Outputs <paramref name="message"/> as a log with <see cref="LogLevel.Info"/>.
     /// </summary>
     /// <remarks>
-    /// If the current logging level is higher than <see cref="LogLevel.Info"/>, this method
-    /// doesn't output <paramref name="message"/> as a log.
+    /// If the current logging level is higher than <see cref="LogLevel.Info"/>,
+    /// this method doesn't output <paramref name="message"/> as a log.
     /// </remarks>
     /// <param name="message">
     /// A <see cref="string"/> that represents the message to output as a log.
@@ -293,8 +293,8 @@ namespace WebSocketSharp
     /// Outputs <paramref name="message"/> as a log with <see cref="LogLevel.Trace"/>.
     /// </summary>
     /// <remarks>
-    /// If the current logging level is higher than <see cref="LogLevel.Trace"/>, this method
-    /// doesn't output <paramref name="message"/> as a log.
+    /// If the current logging level is higher than <see cref="LogLevel.Trace"/>,
+    /// this method doesn't output <paramref name="message"/> as a log.
     /// </remarks>
     /// <param name="message">
     /// A <see cref="string"/> that represents the message to output as a log.
@@ -311,8 +311,8 @@ namespace WebSocketSharp
     /// Outputs <paramref name="message"/> as a log with <see cref="LogLevel.Warn"/>.
     /// </summary>
     /// <remarks>
-    /// If the current logging level is higher than <see cref="LogLevel.Warn"/>, this method
-    /// doesn't output <paramref name="message"/> as a log.
+    /// If the current logging level is higher than <see cref="LogLevel.Warn"/>,
+    /// this method doesn't output <paramref name="message"/> as a log.
     /// </remarks>
     /// <param name="message">
     /// A <see cref="string"/> that represents the message to output as a log.
