@@ -6,6 +6,11 @@
 
   I haven't used this package in almost 2 years now, the main protocol will
   probably work, but I no longer mantain it nor add support for new features.
+  
+# Developer Notice (Rhinox) #
+
+  We, Rhinox, have changed this repository to support UPM import and updated some API calls.
+  This project may still be deprecated and is not actively maintained by Rhinox, but should work for simple socket.io projects.
 
 # Overview #
   
